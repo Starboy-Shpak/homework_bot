@@ -51,6 +51,7 @@ def get_api_answer(current_timestamp):
         )
     except requests.RequestException as error:
         logger.error('Ошибка при запросе к эндпоинту! {error}')
+        raise error
     if response.status_code != HTTPStatus.OK:
         raise exceptions.HTTPStatusError(
             f'{ENDPOINT} недоступен! Код: {response.status_code}.'
@@ -82,6 +83,7 @@ def check_response(response):
 
 
 def parse_status(homework):
+    """Достает статус из полученной домашней работы."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if not homework_status:
