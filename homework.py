@@ -1,6 +1,5 @@
 from asyncio.log import logger
 import logging
-from optparse import Values
 import os
 import sys
 import time
