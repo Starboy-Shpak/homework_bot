@@ -1,5 +1,6 @@
 from asyncio.log import logger
 import logging
+from optparse import Values
 import os
 import sys
 import time
@@ -17,8 +18,8 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+TELEGRAM_RETRY_TIME = 600
 
-RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -50,8 +51,9 @@ def get_api_answer(current_timestamp):
             params=params
         )
     except requests.RequestException as error:
-        logger.error('Ошибка при запросе к эндпоинту! {error}')
-        raise error
+        raise ConnectionError(
+            'Ошибка при запросе к эндпоинту! {error}'
+        ) from error
     if response.status_code != HTTPStatus.OK:
         raise exceptions.HTTPStatusError(
             f'{ENDPOINT} недоступен! Код: {response.status_code}.'
@@ -84,12 +86,12 @@ def check_response(response):
 
 def parse_status(homework):
     """Достает статус из полученной домашней работы."""
-    homework_name = homework['homework_name']
-    homework_status = homework['status']
-    if not homework_status:
-        raise KeyError('В домашней работе отсутствует ключ `homework_status`!')
+    homework_name = homework.get('homework_name')
+    homework_status = homework.get('status')
+    if homework_status is None or homework_name is None:
+        raise KeyError('В домашней работе отсутствует обязательный ключ!')
     if homework_status not in HOMEWORK_STATUSES:
-        raise exceptions.UndocumentedHomeworkStatusError(
+        raise KeyError(
             f'Статуса {homework_status} нет в словаре HOMEWORK_STATUSES!'
         )
 
@@ -98,17 +100,16 @@ def parse_status(homework):
 
 
 def check_tokens():
-    """Проверяет доступность необходимых переменных."""
-    tokens_list = {
+    """Проверяет доступность необходимых токенов."""
+    tokens = {
         'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
-        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID
     }
-
-    def check_tokens() -> bool:
-        for token in tokens_list:
-            if not token:
-                return False
+    for token in tokens:
+        if not globals()[token]:
+            logger.critical(f'Отсутствует {token}!')
+            return False
         return True
     return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
@@ -158,10 +159,9 @@ def main():
                 message = f'Сбой в работе программы: {error}'
                 send_message(bot, message)
                 prev_error_report = current_error_report.copy()
-            time.sleep(RETRY_TIME)
 
         finally:
-            time.sleep(RETRY_TIME)
+            time.sleep(TELEGRAM_RETRY_TIME)
 
 
 if __name__ == '__main__':
