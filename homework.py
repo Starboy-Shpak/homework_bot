@@ -1,4 +1,4 @@
-from asyncio.log import logger
+from loguru import logger
 import logging
 import os
 import sys
@@ -13,6 +13,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logger.add(
+    sys.stderr,
+    format="{time} {level} {funcName} {message}",
+    filter="main.log", level="INFO"
+)
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -23,7 +28,7 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
-HOMEWORK_STATUSES = {
+HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
@@ -87,14 +92,15 @@ def parse_status(homework):
     """Достает статус из полученной домашней работы."""
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
-    if homework_status is None or homework_name is None:
-        raise KeyError('В домашней работе отсутствует обязательный ключ!')
-    if homework_status not in HOMEWORK_STATUSES:
+    if homework_status is None:
+        raise KeyError('В домашней работе отсутствует ключ {homework_status}!')
+    if homework_name is None:
+        raise KeyError('В домашней работе отсутствует ключ {homework_name}!')
+    if homework_status not in HOMEWORK_VERDICTS:
         raise KeyError(
-            f'Статуса {homework_status} нет в словаре HOMEWORK_STATUSES!'
+            f'Статуса {homework_status} нет в словаре HOMEWORK_VERDICTS!'
         )
-
-    verdict = HOMEWORK_STATUSES[homework_status]
+    verdict = HOMEWORK_VERDICTS[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -105,26 +111,17 @@ def check_tokens():
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
         'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID
     }
+    missing_tokens = ''
     for token in tokens:
         if not globals()[token]:
-            logger.critical(f'Отсутствует {token}!')
-            return False
+            missing_tokens += token
+            logger.critical(f'Отсутствует {missing_tokens}!')
+    if missing_tokens == '':
         return True
-    return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
 def main():
     """Основная логика работы бота."""
-    logging.basicConfig(
-        format=(
-            '%(asctime)s - %(levelname)s - '
-            '%(funcName)s: %(lineno)d - %(message)s'
-        ),
-        filename='main.log',
-        level=logging.INFO,
-        datefmt='%d-%m-%Y %H:%M:%S'
-    )
-
     if not check_tokens():
         logger.critical(
             'Отсутствуют обязательные переменные окружения! '
@@ -134,21 +131,22 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     prev_error_report = {}
-
+    prev_report = {}
     while True:
         try:
             response = get_api_answer(current_timestamp)
             homeworks = check_response(response)
-            if not homeworks:
-                logger.debug('Новых статусов по домашним работам нет.')
             for homework in homeworks:
                 homework_status = parse_status(homework)
-                homework_name = homework['homework_name']
-                logger.info(
-                    f'Статус домашней работы {homework_name} обновлён.')
-                send_message(bot, homework_status)
-            current_timestamp = int(time.time())
-
+                if not homeworks:
+                    logger.debug('Новых домашних работ нет.')
+                current_report = {'name_homework': homework_status}
+                if current_report != prev_report:
+                    send_message(bot, homework_status)
+                    prev_report = current_report.copy()
+                else:
+                    logger.debug('Отсутствие в ответе новых статусов')
+                current_timestamp = response['current_date']
         except Exception as error:
             logger.error(f'Сбой в работе программы: {error}')
             current_error_report = {
