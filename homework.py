@@ -1,4 +1,4 @@
-from loguru import logger
+from asyncio.log import logger
 import logging
 import os
 import sys
@@ -9,15 +9,11 @@ import telegram
 import exceptions
 from http import HTTPStatus
 
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-logger.add(
-    sys.stderr,
-    format="{time} {level} {funcName} {message}",
-    filter="main.log", level="INFO"
-)
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -162,4 +158,13 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        format=(
+            '%(asctime)s - %(levelname)s - '
+            '%(funcName)s: %(lineno)d - %(message)s'
+        ),
+        filename='main.log',
+        level=logging.INFO,
+        datefmt='%d-%m-%Y %H:%M:%S'
+    )
     main()
