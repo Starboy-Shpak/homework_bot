@@ -1,4 +1,4 @@
-# Backend test homework
+# Telegram_bot "Homework"
 
 Бот для Telegram, разработан в рамках обучения на курсе Яндекс.Практикум. Задача данного бота проверять статус домашних работ и автоматически присылать уведомление владельцу о любом измении.
 
@@ -17,8 +17,8 @@
 ### Как запустить проект:
 - Клонировать репозиторий и перейти в него в командной строке:
 ```
-git clone git@github.com:Starboy-Shpak/api_yamdb.git
-cd api_yamdb/
+git clone git@github.com:Starboy-Shpak/homework_bot.git
+cd homework_bot
 ``` 
 - Cоздать и активировать виртуальное окружение:
 ```
